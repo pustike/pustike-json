@@ -1,6 +1,6 @@
 Pustike JSON   [![][Maven Central img]][Maven Central] [![][Javadocs img]][Javadocs] [![][license img]][license]
 ============
-Contains a JSON Object Mapper built using [Jakarta JSON-P](https://github.com/eclipse-ee4j/jsonp/) APIs and also provides Serializer/Deserializer implementations for [Java JWT](https://github.com/jwtk/jjwt/) library.
+Contains `ObjectMapper` class that can create Java objects from JSON or create JSON value from Java objects, by using [Jakarta JSON-P](https://github.com/eclipse-ee4j/jsonp/) APIs internally. And it also integrates with [Java JWT](https://github.com/jwtk/jjwt/) library by providing implementations for `Serializer`, `Deserializer` services.
 
 The key feature of this object mapper is it's ability to generate JSON values with only specified list of fields/properties of an object depending on the given context. For ex, when a list of customer objects are being shown in a select field, very few properties like code and name are required. But when editing the the same customer object, many additional properties are needed which can be defined in another context. This helps in reducing the transferred data size when communicating with JSON objects in the API.
 
