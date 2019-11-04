@@ -319,24 +319,29 @@ public final class ObjectMapper {
             for (JsonValue jsonValue : jsonArray) {
                 instance.add(toValueInstance(jsonValue, valueType));
             }
-            return (V) Collections.unmodifiableCollection(instance);
+            if (Object.class.equals(collectionType) || List.class.equals(collectionType)) {
+                return (V) Collections.unmodifiableList((List<?>) instance);
+            } else if (Set.class.equals(collectionType)) {
+                return (V) Collections.unmodifiableSet((Set<?>) instance);
+            } else {
+                return (V) instance;
+            }
         }
         throw new IllegalArgumentException("JsonArray can only be converted into an array type!");
     }
 
     @SuppressWarnings("unchecked")
     private <V> Collection<V> createCollectionInstance(Class<?> collectionType) {
-        collectionType = collectionType == Object.class ? List.class : collectionType;
-        if (!collectionType.isInterface()) {
+        if (Object.class.equals(collectionType) || List.class.equals(collectionType)) {
+            return new ArrayList<>();
+        } else if (Set.class.equals(collectionType)) {
+            return new HashSet<>();
+        } else if (!collectionType.isInterface()) {
             try {
                 return (Collection<V>) collectionType.getDeclaredConstructor().newInstance();
             } catch (Exception e) {
                 throw new JsonException("unable to create collection instance: " + collectionType, e);
             }
-        } else if (List.class.isAssignableFrom(collectionType)) {
-            return new ArrayList<>();
-        } else if (Set.class.isAssignableFrom(collectionType)) {
-            return new HashSet<>();
         } else {
             throw new JsonException("unable to create collection instance: " + collectionType);
         }
