@@ -18,30 +18,26 @@ package io.github.pustike.json;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.WeakHashMap;
-import javax.json.JsonException;
+import java.util.*;
+
+import jakarta.json.JsonException;
 
 class MapperContext {
     private static final Map<Class<?>, List<Field>> classFieldListCache = new WeakHashMap<>();
     private final String context;
-    private Map<String, String> jsonContextMap;
+    private Integer contextLevel;
 
     MapperContext(String context) {
         this.context = context;
     }
 
-    List<Field> findAllFields(Class<?> type) {
+    static List<Field> findAllFields(Class<?> type) {
         return classFieldListCache.computeIfAbsent(type, clazz -> {
             List<Field> fieldList = new ArrayList<>();
             for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
                 for (Field field : c.getDeclaredFields()) {
                     if (Modifier.isStatic(field.getModifiers()) || field.getName().startsWith("this$")
-                        || field.getName().startsWith("$")) {
+                            || field.getName().startsWith("$")) {
                         continue;
                     }
                     fieldList.add(field);
@@ -49,44 +45,6 @@ class MapperContext {
             }
             return fieldList;
         });
-    }
-
-    List<String> findIncludedFields(Class<?> objectClass, int level) {
-        if (context == null) {
-            return List.of();
-        }
-        JsonInclude[] jsonIncludes = objectClass.getAnnotationsByType(JsonInclude.class);
-        if (jsonIncludes.length > 0) {// this way PageData without the @JsonInclude is skipped
-            JsonInclude defaultInclude = null, requestedInclude = null;
-            for (JsonInclude jsonInclude : jsonIncludes) {
-                if (defaultInclude == null && Objects.equals(jsonInclude.type(), "")) {
-                    defaultInclude = jsonInclude;
-                }
-                String jsonContext = getJsonContext(objectClass, level);
-                if (Objects.equals(jsonInclude.type(), jsonContext)) {
-                    requestedInclude = jsonInclude;
-                    setJsonContext(objectClass, level, jsonContext);
-                    break;
-                }
-            }
-            JsonInclude selectedInclude = requestedInclude == null ? defaultInclude : requestedInclude;
-            if (selectedInclude != null) {
-                return List.of(selectedInclude.fields());
-            }
-        }
-        return List.of();
-    }
-
-    private String getJsonContext(Class<?> objectClass, int level) {
-        return jsonContextMap == null ? context : jsonContextMap
-            .getOrDefault(objectClass.getSimpleName() + "@" + level, "");
-    }
-
-    private void setJsonContext(Class<?> objectClass, int level, String jsonContext) {
-        if (jsonContextMap == null) {
-            jsonContextMap = new HashMap<>();
-        }
-        jsonContextMap.putIfAbsent(objectClass.getSimpleName() + "@" + level, jsonContext);
     }
 
     static Object getFieldValue(Object instance, Field field) {
@@ -125,5 +83,33 @@ class MapperContext {
             }
             field.set(instance, fieldValue);
         }
+    }
+
+    List<String> findIncludedFields(Class<?> objectClass, int level) {
+        if (context == null) {
+            return List.of();
+        }
+        JsonInclude[] jsonIncludes = objectClass.getAnnotationsByType(JsonInclude.class);
+        if (jsonIncludes.length > 0) {// this way PageData without the @JsonInclude is skipped
+            JsonInclude defaultInclude = null, requestedInclude = null;
+            for (JsonInclude jsonInclude : jsonIncludes) {
+                if (defaultInclude == null && Objects.equals(jsonInclude.type(), "")) {
+                    defaultInclude = jsonInclude;
+                }
+                String jsonContext = contextLevel == null || contextLevel == level ? context : "";
+                if (Objects.equals(jsonInclude.type(), jsonContext)) {
+                    requestedInclude = jsonInclude;
+                    if (contextLevel == null) {
+                        contextLevel = level;
+                    }
+                    break;
+                }
+            }
+            JsonInclude selectedInclude = requestedInclude == null ? defaultInclude : requestedInclude;
+            if (selectedInclude != null) {
+                return List.of(selectedInclude.fields());
+            }
+        }
+        return List.of();
     }
 }

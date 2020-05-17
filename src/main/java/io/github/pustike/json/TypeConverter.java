@@ -248,7 +248,7 @@ public final class TypeConverter {
     }
 
     @SuppressWarnings("unchecked")
-    private <T extends Enum> T convertStringToEnum(String text, Class<T> targetType) {
+    private <T extends Enum<?>> T convertStringToEnum(String text, Class<T> targetType) {
         text = text.trim();
         if (text.length() == 0) {
             return null;
@@ -257,8 +257,9 @@ public final class TypeConverter {
         while (enumType != null && !enumType.isEnum()) {
             enumType = enumType.getSuperclass();
         }
-        Objects.requireNonNull(enumType, "The target type " + targetType.getName()
-                + " does not refer to an enum");
+        if (enumType == null) {
+            throw new NullPointerException("The target type " + targetType + " does not refer to an enum");
+        }
         return (T) Enum.valueOf((Class<? extends Enum>) enumType, text);
     }
 }

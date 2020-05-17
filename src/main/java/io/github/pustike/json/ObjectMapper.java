@@ -25,7 +25,8 @@ import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.*;
-import javax.json.*;
+
+import jakarta.json.*;
 
 /**
  * JSON object mapper.
@@ -57,7 +58,7 @@ public final class ObjectMapper {
      * @throws JsonException if value can not be converted to object of given type
      */
     public <V> V readValue(String jsonString, Type valueType) throws JsonException {
-        try (StringReader reader = new StringReader(jsonString); ) {
+        try (StringReader reader = new StringReader(jsonString)) {
             return readValue(reader, valueType);
         }
     }
@@ -72,7 +73,7 @@ public final class ObjectMapper {
      */
     public <V> V readValue(Reader reader, Type valueType) throws JsonException {
         try (JsonReader jsonReader = Json.createReader(reader)) {
-            return toValueInstance(jsonReader.readValue(), valueType);
+            return toJavaObject(jsonReader.readValue(), valueType);
         } catch (JsonException e) {
             throw e;
         } catch (Exception e) {
@@ -91,12 +92,31 @@ public final class ObjectMapper {
     public <V> V readValue(byte[] bytes, Type valueType) throws JsonException {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
              JsonReader jsonReader = Json.createReader(inputStream)) {
-            return toValueInstance(jsonReader.readValue(), valueType);
+            return toJavaObject(jsonReader.readValue(), valueType);
         } catch (JsonException e) {
             throw e;
         } catch (Exception e) {
             throw new JsonException("Unable to read value from json", e);
         }
+    }
+
+    /**
+     * Map JSON value into a Java object of the given type.
+     * @param jsonValue the JSON value instance
+     * @param valueType the value type
+     * @param <V> the type of object
+     * @return the mapped object from JSON value
+     * @throws JsonException if value can not be converted to object of given type
+     */
+    @SuppressWarnings("unchecked")
+    public <V> V toJavaObject(JsonValue jsonValue, Type valueType) {
+        Objects.requireNonNull(jsonValue);
+        Objects.requireNonNull(valueType);
+        if (valueType instanceof Class && JsonValue.class.isAssignableFrom((Class<?>) valueType)) {
+            return (V) jsonValue;
+        }
+        Map.Entry<Class<?>, Class<?>> typeArguments = getTypeArguments(valueType);
+        return toJavaObject(jsonValue, (Class<V>) typeArguments.getValue(), typeArguments.getKey());
     }
 
     /**
@@ -138,9 +158,9 @@ public final class ObjectMapper {
         } else if (value.getClass().isArray()) {
             return toJsonArray(value, context, level);
         } else if (Iterable.class.isAssignableFrom(value.getClass())) {
-            return toJsonArray((Iterable) value, context, level);
+            return toJsonArray((Iterable<?>) value, context, level);
         } else if (Map.class.isAssignableFrom(value.getClass())) {
-            return toJsonObject((Map) value, context, level);
+            return toJsonObject((Map<?, ?>) value, context, level);
         } else {
             if (typeConverter != null) {
                 String stringValue = typeConverter.convertSafely(value, String.class);
@@ -176,7 +196,7 @@ public final class ObjectMapper {
     private JsonArray toJsonArray(Object value, MapperContext context, int level) {
         JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
         for (int i = 0; i < Array.getLength(value); i++) {
-            arrayBuilder.add(toJsonValue(Array.get(value, i), context, level + 1));
+            arrayBuilder.add(toJsonValue(Array.get(value, i), context, level));
         }
         return arrayBuilder.build();
     }
@@ -184,7 +204,7 @@ public final class ObjectMapper {
     private JsonArray toJsonArray(Iterable<?> iterable, MapperContext context, int level) {
         JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
         for (Object value : iterable) {
-            arrayBuilder.add(toJsonValue(value, context, level + 1));
+            arrayBuilder.add(toJsonValue(value, context, level));
         }
         return arrayBuilder.build();
     }
@@ -192,14 +212,14 @@ public final class ObjectMapper {
     private JsonObject toJsonObject(Map<?, ?> map, MapperContext context, int level) {
         JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
         for (Map.Entry<?, ?> entry : map.entrySet()) {
-            objectBuilder.add(String.valueOf(entry.getKey()), toJsonValue(entry.getValue(), context, level + 1));
+            objectBuilder.add(String.valueOf(entry.getKey()), toJsonValue(entry.getValue(), context, level));
         }
         return objectBuilder.build();
     }
 
     private JsonObject toJsonObject(Object object, MapperContext context, int level) {
         JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
-        List<Field> fieldList = context.findAllFields(object.getClass());
+        List<Field> fieldList = MapperContext.findAllFields(object.getClass());
         List<String> includedFieldNames = context.findIncludedFields(object.getClass(), level);
         for (Field field : fieldList) {
             if (!includedFieldNames.isEmpty() && !includedFieldNames.contains(field.getName())) {
@@ -215,20 +235,7 @@ public final class ObjectMapper {
     }
 
     @SuppressWarnings("unchecked")
-    private <V> V toValueInstance(JsonValue jsonValue, Type valueType) {
-        Objects.requireNonNull(jsonValue);
-        Objects.requireNonNull(valueType);
-        if (valueType instanceof Class) {
-            if (JsonValue.class.isAssignableFrom((Class<?>)valueType)) {
-                return (V) jsonValue;
-            }
-        }
-        Map.Entry<Class<?>, Class<?>> typeArguments = getTypeArguments(valueType);
-        return toValueInstance(jsonValue, (Class<V>) typeArguments.getValue(), typeArguments.getKey());
-    }
-
-    @SuppressWarnings("unchecked")
-    private <V> V toValueInstance(JsonValue jsonValue, Class<V> valueType, Class<?> collectionType) {
+    private <V> V toJavaObject(JsonValue jsonValue, Class<V> valueType, Class<?> collectionType) {
         if (jsonValue instanceof JsonArray) {
             return toArrayInstance((JsonArray) jsonValue, valueType, collectionType);
         } else if (jsonValue instanceof JsonObject) {
@@ -258,14 +265,13 @@ public final class ObjectMapper {
         if (valueType == Object.class || Map.class.isAssignableFrom(valueType)) {// then return a map
             Map<Object, Object> instance = createObjectMapInstance(valueType);
             for (Map.Entry<String, JsonValue> entry : jsonObject.entrySet()) {
-                instance.put(entry.getKey(), toValueInstance(entry.getValue(), Object.class));
+                instance.put(entry.getKey(), toJavaObject(entry.getValue(), Object.class));
             }
             return (V) Collections.unmodifiableMap(instance);
         } else { // try to create the value type instance
             try {
-                MapperContext context = new MapperContext(null);
                 V instance = (V) valueType.getDeclaredConstructor().newInstance();
-                List<Field> fieldList = context.findAllFields(valueType);
+                List<Field> fieldList = MapperContext.findAllFields(valueType);
                 for (Map.Entry<String, JsonValue> entry : jsonObject.entrySet()) {
                     Field field = null;
                     for (Field f : fieldList) {
@@ -278,7 +284,7 @@ public final class ObjectMapper {
                         continue;//or throw exception here!
                     }
                     Class<?> typeArgument = getTypeArguments(field.getGenericType()).getValue();
-                    Object fieldValue = toValueInstance(entry.getValue(), typeArgument, field.getType());
+                    Object fieldValue = toJavaObject(entry.getValue(), typeArgument, field.getType());
                     MapperContext.setFieldValue(instance, field, fieldValue);
                 }
                 return instance;
@@ -311,13 +317,13 @@ public final class ObjectMapper {
         if (collectionType.isArray()) {
             V[] instance = (V[]) Array.newInstance(valueType, jsonArray.size());
             for (int i = 0; i < jsonArray.size(); i++) {
-                instance[i] = toValueInstance(jsonArray.get(i), valueType);
+                instance[i] = toJavaObject(jsonArray.get(i), valueType);
             }
             return (V) instance;
         } else if (Collection.class.isAssignableFrom(collectionType)) {
             Collection<V> instance = createCollectionInstance(collectionType);
             for (JsonValue jsonValue : jsonArray) {
-                instance.add(toValueInstance(jsonValue, valueType));
+                instance.add(toJavaObject(jsonValue, valueType));
             }
             if (Object.class.equals(collectionType) || List.class.equals(collectionType)) {
                 return (V) Collections.unmodifiableList((List<?>) instance);

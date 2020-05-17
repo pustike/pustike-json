@@ -13,20 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import io.github.pustike.json.jjwt.JsonpDeserializer;
-import io.github.pustike.json.jjwt.JsonpSerializer;
-import io.jsonwebtoken.io.Deserializer;
-import io.jsonwebtoken.io.Serializer;
-
 /**
  * Pustike JSON module.
  */
 module io.github.pustike.json {
-    requires java.json;
-    requires io.jsonwebtoken.api;
+    requires transitive jakarta.json;
 
     exports io.github.pustike.json;
-
-    provides Serializer with JsonpSerializer;
-    provides Deserializer with JsonpDeserializer;
 }
