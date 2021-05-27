@@ -32,7 +32,7 @@
     <url>https://github.com/pustike/pustike-json</url>
 
     <properties>
-        <json-api.version>2.0.0</json-api.version>
+        <json-api.version>2.0.1</json-api.version>
     </properties>
     <dependencies>
         <dependency>
