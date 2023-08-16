@@ -18,6 +18,7 @@ package io.github.pustike.json;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -176,7 +177,7 @@ public final class TypeConverter {
     /**
      * Find all super classes and interfaces for the given concrete class.
      * @param concreteClass the event class
-     * @return a list of subscriber methods
+     * @return set of all classes in the hierarchy
      */
     private Set<Class<?>> flattenHierarchy(Class<?> concreteClass) {
         Set<Class<?>> allSuperTypes = new LinkedHashSet<>();
@@ -228,6 +229,9 @@ public final class TypeConverter {
         // String <-> LocalDate
         addConverter(LocalDate.class, String.class, LocalDate::toString);
         addConverter(String.class, LocalDate.class, str -> str == null || str.isEmpty() ? null : LocalDate.parse(str));
+        // String <-> LocalTime
+        addConverter(LocalTime.class, String.class, LocalTime::toString);
+        addConverter(String.class, LocalTime.class, str -> str == null || str.isEmpty() ? null : LocalTime.parse(str));
         // String <-> LocalDateTime
         addConverter(LocalDateTime.class, String.class, LocalDateTime::toString);
         addConverter(String.class, LocalDateTime.class,

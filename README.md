@@ -1,6 +1,6 @@
 Pustike JSON   [![][Maven Central img]][Maven Central] [![][Javadocs img]][Javadocs] [![][license img]][license]
 ============
-Contains `ObjectMapper` class that can create Java objects from JSON or create JSON value from Java objects, by using [Jakarta JSON-P](https://github.com/eclipse-ee4j/jsonp/) APIs internally.
+Contains `ObjectMapper` class that can create Java objects from JSON or create JSON value from Java objects, by using [Jakarta JSON-P](https://github.com/jakartaee/jsonp-api) APIs internally.
 
 The key feature of this object mapper is its ability to generate JSON values with only specified list of fields/properties of an object depending on the given context. For ex, when a list of customer objects are being shown in a select field, very few properties like code and name, are required. But when editing the same customer object, many additional properties are needed which can be defined in another context. This helps in reducing the transferred data size when communicating with JSON objects in the API.
 
@@ -13,12 +13,11 @@ Following are some of its features:
 
 **Dependencies** 
 
-This library requires Java 11 and following modules:
+This library requires Java 17 and following modules:
 
 | Group Id        | Artifact Id      | Version |
 |-----------------|------------------|---------|
-| jakarta.json    | jakarta.json-api | 2.0.0   |
-| org.glassfish   | jakarta.json     | 2.0.0   |
+| jakarta.json    | jakarta.json-api | 2.1.2   |
 
 **Documentation:** Latest javadocs is available [here][Javadocs].
 
@@ -29,7 +28,7 @@ To add a dependency using Maven, use the following:
 <dependency>
     <groupId>io.github.pustike</groupId>
     <artifactId>pustike-json</artifactId>
-    <version>0.2.0</version>
+    <version>0.3.0</version>
 </dependency>
 ```
 Or, download the latest JAR(~21kB) from [Maven Central][latest-jar].
