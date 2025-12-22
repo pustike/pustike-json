@@ -17,7 +17,7 @@ This library requires Java 17 and following modules:
 
 | Group Id        | Artifact Id      | Version |
 |-----------------|------------------|---------|
-| jakarta.json    | jakarta.json-api | 2.1.2   |
+| jakarta.json    | jakarta.json-api | 2.1.3   |
 
 **Documentation:** Latest javadocs is available [here][Javadocs].
 

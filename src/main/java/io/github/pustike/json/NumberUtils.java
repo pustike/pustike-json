@@ -98,7 +98,7 @@ class NumberUtils {
         Objects.requireNonNull(text, "Text must not be null");
         Objects.requireNonNull(targetClass, "Target class must not be null");
         String trimmed = text.trim();
-        if (trimmed.length() == 0) {
+        if (trimmed.isEmpty()) {
             return null;
         }
         if (Byte.class == targetClass) {

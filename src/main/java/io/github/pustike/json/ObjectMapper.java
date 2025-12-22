@@ -22,8 +22,6 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.*;
 
 import jakarta.json.*;
@@ -154,7 +152,7 @@ public final class ObjectMapper {
         } else if (value instanceof Boolean) {
             return (Boolean) value ? JsonValue.TRUE : JsonValue.FALSE;
         } else if (value instanceof Number) {
-            return toJsonNumber((Number) value);
+            return Json.createValue((Number) value);
         } else if (value.getClass().isArray()) {
             return toJsonArray(value, context, level);
         } else if (Iterable.class.isAssignableFrom(value.getClass())) {
@@ -170,27 +168,6 @@ public final class ObjectMapper {
             }
             return toJsonObject(value, context, level);
         }
-    }
-
-    private JsonValue toJsonNumber(Number value) {
-        if (value instanceof Byte) {
-            return Json.createValue((Byte) value);
-        } else if (value instanceof Short) {
-            return Json.createValue((Short) value);
-        } else if (value instanceof Integer) {
-            return Json.createValue((Integer) value);
-        } else if (value instanceof Long) {
-            return Json.createValue((Long) value);
-        } else if (value instanceof BigInteger) {
-            return Json.createValue((BigInteger) value);
-        } else if (value instanceof Float) {
-            return Json.createValue((Float) value);
-        } else if (value instanceof Double) {
-            return Json.createValue((Double) value);
-        } else if (value instanceof BigDecimal) {
-            return Json.createValue((BigDecimal) value);
-        }
-        throw new JsonException("Unable to convert value: " + value);
     }
 
     private JsonArray toJsonArray(Object value, MapperContext context, int level) {
@@ -356,8 +333,7 @@ public final class ObjectMapper {
     private static Map.Entry<Class<?>, Class<?>> getTypeArguments(Type type) {
         if (type instanceof Class) {
             return new AbstractMap.SimpleImmutableEntry<>((Class<?>) type, (Class<?>) type);
-        } else if (type instanceof ParameterizedType) {
-            ParameterizedType parameterizedType = (ParameterizedType) type;
+        } else if (type instanceof ParameterizedType parameterizedType) {
             Class<?> rawType = (Class<?>) parameterizedType.getRawType();
             Type[] typeArguments = parameterizedType.getActualTypeArguments();
             if (typeArguments.length > 0) {

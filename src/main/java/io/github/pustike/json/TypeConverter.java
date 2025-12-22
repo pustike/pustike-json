@@ -147,8 +147,7 @@ public final class TypeConverter {
             return (T) source;
         }
         Function<S, T> converter = (Function<S, T>) findConverter(sourceType, targetType);
-        if (converter instanceof BiFunctionWrapper) {
-            BiFunctionWrapper<S, T> wrapper = (BiFunctionWrapper<S, T>) converter;
+        if (converter instanceof BiFunctionWrapper<S, T> wrapper) {
             return wrapper.converterFactory.apply(source, targetType);
         } else if (converter != null) {
             return converter.apply(source);
@@ -199,13 +198,8 @@ public final class TypeConverter {
         converterCache.clear();
     }
 
-    private static final class BiFunctionWrapper<S, T> implements Function<S, T> {
-        private final BiFunction<S, Class<? extends T>, T> converterFactory;
-
-        BiFunctionWrapper(BiFunction<S, Class<? extends T>, T> converterFactory) {
-            this.converterFactory = converterFactory;
-        }
-
+    private record BiFunctionWrapper<S, T>(BiFunction<S, Class<? extends T>, T> converterFactory)
+            implements Function<S, T> {
         @Override
         public T apply(S source) {
             throw new RuntimeException("apply method should be called on BiFunctionWrapper!");
@@ -254,7 +248,7 @@ public final class TypeConverter {
     @SuppressWarnings("unchecked")
     private <T extends Enum<?>> T convertStringToEnum(String text, Class<T> targetType) {
         text = text.trim();
-        if (text.length() == 0) {
+        if (text.isEmpty()) {
             return null;
         }
         Class<?> enumType = targetType;

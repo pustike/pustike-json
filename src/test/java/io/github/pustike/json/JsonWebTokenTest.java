@@ -19,7 +19,8 @@ package io.github.pustike.json;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.DeserializationException;
+import io.jsonwebtoken.io.AbstractDeserializer;
+import io.jsonwebtoken.io.AbstractSerializer;
 import io.jsonwebtoken.io.Deserializer;
 import io.jsonwebtoken.io.SerializationException;
 import io.jsonwebtoken.io.Serializer;
@@ -29,6 +30,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import javax.crypto.SecretKey;
+
+import java.io.OutputStream;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -48,19 +52,21 @@ public class JsonWebTokenTest {
     public static void setup() {
         // Setup JWT Serializer/Deserializer implementations using JSON-P and object mapper.
         ObjectMapper objectMapper = new ObjectMapper(new TypeConverter());
-        jwtSerializer = map -> {
-            Objects.requireNonNull(map, "Object to serialize cannot be null.");
-            try {
-                return objectMapper.toJsonValue(map).toString().getBytes(StandardCharsets.UTF_8);
-            } catch (Exception e) {
-                throw new SerializationException("Unable to serialize object: " + e.getMessage(), e);
+        jwtSerializer = new AbstractSerializer<>() {
+            @Override
+            protected void doSerialize(Map<String, ?> map, OutputStream outputStream) {
+                Objects.requireNonNull(map, "Object to serialize cannot be null.");
+                try {
+                    outputStream.write(objectMapper.toJsonValue(map).toString().getBytes(StandardCharsets.UTF_8));
+                } catch (Exception e) {
+                    throw new SerializationException("Unable to serialize object: " + e.getMessage(), e);
+                }
             }
         };
-        jwtDeserializer = bytes -> {
-            try {
-                return objectMapper.readValue(bytes, Object.class);
-            } catch (Exception e) {
-                throw new DeserializationException("Unable to deserialize bytes: " + e.getMessage(), e);
+        jwtDeserializer = new AbstractDeserializer<>() {
+            @Override
+            protected Map<String, ?> doDeserialize(Reader reader) {
+                return objectMapper.readValue(reader, Object.class);
             }
         };
     }
@@ -70,7 +76,7 @@ public class JsonWebTokenTest {
         String payload = "{\"iss\":\"joe\",\r\n" +
             " \"exp\":1300819380,\r\n" +
             " \"http://example.com/is_root\":true}";
-        String val = Jwts.builder().setPayload(payload).serializeToJsonWith(jwtSerializer).compact();
+        String val = Jwts.builder().content(payload).json(jwtSerializer).compact();
         String specOutput = "eyJhbGciOiJub25lIn0.eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.";
         Assertions.assertEquals(specOutput, val);
     }
@@ -86,12 +92,12 @@ public class JsonWebTokenTest {
 
         String id = "1";
         Date expiration = Date.from(Instant.now().plus(30, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS));
-        String compact = Jwts.builder().setId(id).setExpiration(expiration).signWith(secretKey)
-            .serializeToJsonWith(jwtSerializer).compact();
+        String compact = Jwts.builder().id(id).expiration(expiration).signWith(secretKey)
+            .json(jwtSerializer).compact();
 
-        Jws<Claims> claimsJws = Jwts.parserBuilder().setSigningKey(secretKey)
-                .deserializeJsonWith(jwtDeserializer).build().parseClaimsJws(compact);
-        Claims claims = claimsJws.getBody();
+        Jws<Claims> claimsJws = Jwts.parser().verifyWith(secretKey)
+                .json(jwtDeserializer).build().parseSignedClaims(compact);
+        Claims claims = claimsJws.getPayload();
         Assertions.assertEquals(id, claims.getId());
         Assertions.assertEquals(expiration, claims.getExpiration());
     }
