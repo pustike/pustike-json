@@ -85,9 +85,9 @@ class MapperContext {
         }
     }
 
-    List<String> findIncludedFields(Class<?> objectClass, int level) {
+    Map<String, String> findIncludedFields(Class<?> objectClass, int level) {
         if (context == null) {
-            return List.of();
+            return Map.of();
         }
         JsonInclude[] jsonIncludes = objectClass.getAnnotationsByType(JsonInclude.class);
         if (jsonIncludes.length > 0) {// this way PageData without the @JsonInclude is skipped
@@ -107,9 +107,20 @@ class MapperContext {
             }
             JsonInclude selectedInclude = requestedInclude == null ? defaultInclude : requestedInclude;
             if (selectedInclude != null) {
-                return List.of(selectedInclude.fields());
+                String[] fields = selectedInclude.fields();
+                Map<String, String> fieldCtxMap = new HashMap<>(fields.length);
+                for (String fieldName : fields) {
+                    int fgIndex = fieldName.indexOf('@');
+                    String joinFieldGroup = null;
+                    if(fgIndex != -1) {
+                        joinFieldGroup = fieldName.substring(fgIndex + 1);
+                        fieldName = fieldName.substring(0, fgIndex);
+                    }
+                    fieldCtxMap.put(fieldName, joinFieldGroup);
+                }
+                return fieldCtxMap;
             }
         }
-        return List.of();
+        return Map.of();
     }
 }

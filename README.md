@@ -13,7 +13,7 @@ Following are some of its features:
 
 **Dependencies** 
 
-This library requires Java 17 and following modules:
+This library requires Java 21 and following modules:
 
 | Group Id        | Artifact Id      | Version |
 |-----------------|------------------|---------|
@@ -28,7 +28,7 @@ To add a dependency using Maven, use the following:
 <dependency>
     <groupId>io.github.pustike</groupId>
     <artifactId>pustike-json</artifactId>
-    <version>0.3.0</version>
+    <version>0.5.0</version>
 </dependency>
 ```
 Or, download the latest JAR(~21kB) from [Maven Central][latest-jar].

@@ -52,8 +52,8 @@ public final class TypeConverter {
     }
 
     /**
-     * Add an explicitly source/target type specified converter to this registry.
-     * @param sourceType the source type to convert from (may be {@code null} if source is {@code null})
+     * Add an explicit source/target type specified converter to this registry.
+     * @param sourceType the source type to convert from
      * @param targetType the target type to convert to (required)
      * @param converter  the converter function to convert source type to target type
      * @param <S>        the source type
@@ -77,7 +77,7 @@ public final class TypeConverter {
 
     /**
      * Add a generic source/target type converter to this registry.
-     * @param sourceType       the source type to convert from (may be {@code null} if source is {@code null})
+     * @param sourceType       the source type to convert from
      * @param targetType       the target type to convert to (required)
      * @param genericConverter the generic converter function that accepts the target type along with the source
      * @param <S>              the source type
@@ -92,7 +92,7 @@ public final class TypeConverter {
      * Return {@code true} if objects of {@code sourceType} can be converted to the {@code targetType}.
      * <p>If this method returns {@code true}, it means {@link #convert(Object, Class)} is capable
      * of converting an instance of {@code sourceType} to {@code targetType}.
-     * @param sourceType the source type to convert from (may be {@code null} if source is {@code null})
+     * @param sourceType the source type to convert from (can be {@code null} if source is {@code null})
      * @param targetType the target type to convert to (required)
      * @return {@code true} if conversion can be performed, {@code false} if not
      * @throws NullPointerException if {@code targetType} is {@code null}
@@ -123,8 +123,8 @@ public final class TypeConverter {
 
     /**
      * Convert the given {@code source} to the specified {@code targetType} without exceptions.
-     * If the matching converter is not found, it return {@code null}.
-     * @param source     the source object to convert (may be {@code null})
+     * If the matching converter is not found, it returns {@code null}.
+     * @param source     the source object to convert (can be {@code null})
      * @param targetType the target type to convert to (required)
      * @return the converted object, an instance of targetType
      * @throws NullPointerException if {@code targetType} is {@code null}

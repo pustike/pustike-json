@@ -21,11 +21,11 @@
     <parent>
         <groupId>io.github.pustike</groupId>
         <artifactId>pustike-maven-parent</artifactId>
-        <version>0.3.0</version>
+        <version>0.4.0</version>
     </parent>
 
     <artifactId>pustike-json</artifactId>
-    <version>0.3.0</version>
+    <version>0.5.0</version>
 
     <name>Pustike JSON</name>
     <description>JSON Object Mapper using Jakarta JSON-P</description>
@@ -62,7 +62,7 @@
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <configuration>
                     <links>
-                        <link>https://javadoc.io/doc/jakarta.json/jakarta.json-api/</link>
+                        <link>https://javadoc.io/doc/jakarta.json/jakarta.json-api/${json-api.version}</link>
                     </links>
                 </configuration>
             </plugin>

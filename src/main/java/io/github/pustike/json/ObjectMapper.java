@@ -197,16 +197,18 @@ public final class ObjectMapper {
     private JsonObject toJsonObject(Object object, MapperContext context, int level) {
         JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
         List<Field> fieldList = MapperContext.findAllFields(object.getClass());
-        List<String> includedFieldNames = context.findIncludedFields(object.getClass(), level);
+        Map<String, String> fieldCtxMap = context.findIncludedFields(object.getClass(), level);
         for (Field field : fieldList) {
-            if (!includedFieldNames.isEmpty() && !includedFieldNames.contains(field.getName())) {
+            if (!fieldCtxMap.isEmpty() && !fieldCtxMap.containsKey(field.getName())) {
                 continue;
             }
             Object fieldValue = MapperContext.getFieldValue(object, field);
             if (fieldValue == null) {
                 continue;
             }
-            objectBuilder.add(field.getName(), toJsonValue(fieldValue, context, level + 1));
+            String nestedCtx = fieldCtxMap.get(field.getName());
+            objectBuilder.add(field.getName(), nestedCtx == null ? toJsonValue(fieldValue, context, level + 1)
+                    : toJsonValue(fieldValue, new MapperContext(nestedCtx), level));
         }
         return objectBuilder.build();
     }
