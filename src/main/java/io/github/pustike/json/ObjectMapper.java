@@ -19,15 +19,21 @@ import java.io.ByteArrayInputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.lang.reflect.Array;
-import java.lang.reflect.Field;
-import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
 
 import jakarta.json.*;
 
 /**
- * JSON object mapper.
+ * JSON object mapper for bidirectional conversion between Java objects and JSON.
+ * <p>
+ * This class is thread-safe and instances may be safely shared across threads.
+ * The internal {@link TypeConverter} reference is immutable after construction.
+ * </p>
+ * <p>
+ * Null field values are silently omitted from JSON output by default.
+ * Unknown JSON fields are silently ignored during deserialization.
+ * </p>
  */
 public final class ObjectMapper {
     private final TypeConverter typeConverter;
@@ -113,8 +119,8 @@ public final class ObjectMapper {
         if (valueType instanceof Class && JsonValue.class.isAssignableFrom((Class<?>) valueType)) {
             return (V) jsonValue;
         }
-        Map.Entry<Class<?>, Class<?>> typeArguments = getTypeArguments(valueType);
-        return toJavaObject(jsonValue, (Class<V>) typeArguments.getValue(), typeArguments.getKey());
+        Map.Entry<Class<?>, Class<?>> typeArguments = MapperUtils.getTypeArguments(valueType);
+        return createJavaObject(jsonValue, (Class<V>) typeArguments.getValue(), typeArguments.getKey());
     }
 
     /**
@@ -136,29 +142,50 @@ public final class ObjectMapper {
      */
     public JsonValue toJsonValue(Object value, String context) {
         try {
-            return toJsonValue(value, new MapperContext(context), 0);
+            return createJsonValue(value, context, 0);
         } catch (JsonException e) {
             throw e;
         } catch (Exception e) {
-            throw new JsonException("Unable to write value as string", e);
+            throw new JsonException("error while creating the jsonValue", e);
         }
     }
 
-    private JsonValue toJsonValue(Object value, MapperContext context, int level) {
+    /**
+     * Clears the internal field accessor cache.
+     * This is useful when classes are dynamically modified at runtime (e.g., via bytecode manipulation)
+     * and the cached field information needs to be refreshed.
+     */
+    public static void clearCache() {
+        MapperUtils.clearCache();
+    }
+
+    /**
+     * Maximum allowed nesting depth for JSON serialization.
+     * Exceeding this limit throws a {@link jakarta.json.JsonException} to prevent stack overflow
+     * from deeply nested or circular references.
+     */
+    private static final int MAX_NESTING_DEPTH = 15;
+
+    public JsonValue createJsonValue(Object value, String context, int level) {
         if (value == null) {
             return JsonValue.NULL;
+        }
+        if (level > MAX_NESTING_DEPTH) {
+            throw new JsonException("level exceeds maximum of " + MAX_NESTING_DEPTH);
         } else if (value instanceof JsonValue) {
             return (JsonValue) value;
         } else if (value instanceof Boolean) {
             return (Boolean) value ? JsonValue.TRUE : JsonValue.FALSE;
         } else if (value instanceof Number) {
             return Json.createValue((Number) value);
+        } else if (value instanceof String) {
+            return Json.createValue((String) value);
         } else if (value.getClass().isArray()) {
-            return toJsonArray(value, context, level);
+            return createJsonArray(value, context, level);
         } else if (Iterable.class.isAssignableFrom(value.getClass())) {
-            return toJsonArray((Iterable<?>) value, context, level);
+            return createJsonArray((Iterable<?>) value, context, level);
         } else if (Map.class.isAssignableFrom(value.getClass())) {
-            return toJsonObject((Map<?, ?>) value, context, level);
+            return createJsonObject((Map<?, ?>) value, context, level);
         } else {
             if (typeConverter != null) {
                 String stringValue = typeConverter.convertSafely(value, String.class);
@@ -166,59 +193,71 @@ public final class ObjectMapper {
                     return Json.createValue(stringValue);
                 }
             }
-            return toJsonObject(value, context, level);
+            return createJsonObject(value, context, level);
         }
     }
 
-    private JsonArray toJsonArray(Object value, MapperContext context, int level) {
+    private JsonArray createJsonArray(Object value, String context, int level) {
         JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
         for (int i = 0; i < Array.getLength(value); i++) {
-            arrayBuilder.add(toJsonValue(Array.get(value, i), context, level));
+            arrayBuilder.add(createJsonValue(Array.get(value, i), context, level + 1));
         }
         return arrayBuilder.build();
     }
 
-    private JsonArray toJsonArray(Iterable<?> iterable, MapperContext context, int level) {
+    private JsonArray createJsonArray(Iterable<?> iterable, String context, int level) {
         JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
         for (Object value : iterable) {
-            arrayBuilder.add(toJsonValue(value, context, level));
+            arrayBuilder.add(createJsonValue(value, context, level + 1));
         }
         return arrayBuilder.build();
     }
 
-    private JsonObject toJsonObject(Map<?, ?> map, MapperContext context, int level) {
+    private JsonObject createJsonObject(Map<?, ?> map, String context, int level) {
         JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
         for (Map.Entry<?, ?> entry : map.entrySet()) {
-            objectBuilder.add(String.valueOf(entry.getKey()), toJsonValue(entry.getValue(), context, level));
+            objectBuilder.add(String.valueOf(entry.getKey()), createJsonValue(entry.getValue(), context, level + 1));
         }
         return objectBuilder.build();
     }
 
-    private JsonObject toJsonObject(Object object, MapperContext context, int level) {
+    private JsonObject createJsonObject(Object object, String context, int level) {
         JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
-        List<Field> fieldList = MapperContext.findAllFields(object.getClass());
-        Map<String, String> fieldCtxMap = context.findIncludedFields(object.getClass(), level);
-        for (Field field : fieldList) {
-            if (!fieldCtxMap.isEmpty() && !fieldCtxMap.containsKey(field.getName())) {
-                continue;
+        try {
+            ClassMetadata classMetadata = MapperUtils.getMetadata(object.getClass());
+            Map<String, PropertyAccessor> propertyAccessorMap = classMetadata.getPropertyAccessorMap();
+            Map<String, String> fieldCtxMap = MapperUtils.findFieldInclusionMap(object.getClass(), context);
+            for (PropertyAccessor accessor : propertyAccessorMap.values()) {
+                if (!fieldCtxMap.isEmpty()) {
+                    // Field must be in the inclusion map to be serialized
+                    if (!fieldCtxMap.containsKey(accessor.javaName())) {
+                        continue;
+                    }
+                }
+                Object fieldValue = accessor.get(object);
+                if (fieldValue == null) {
+                    continue;
+                }
+                String nestedCtx = fieldCtxMap.get(accessor.javaName());
+                if (nestedCtx == null) {
+                    nestedCtx = fieldCtxMap.isEmpty() ? context : "";
+                }
+                objectBuilder.add(accessor.name(), createJsonValue(fieldValue, nestedCtx, level + 1));
             }
-            Object fieldValue = MapperContext.getFieldValue(object, field);
-            if (fieldValue == null) {
-                continue;
-            }
-            String nestedCtx = fieldCtxMap.get(field.getName());
-            objectBuilder.add(field.getName(), nestedCtx == null ? toJsonValue(fieldValue, context, level + 1)
-                    : toJsonValue(fieldValue, new MapperContext(nestedCtx), level));
+        } catch (JsonException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new JsonException("unable to create json object", e);
         }
         return objectBuilder.build();
     }
 
     @SuppressWarnings("unchecked")
-    private <V> V toJavaObject(JsonValue jsonValue, Class<V> valueType, Class<?> collectionType) {
+    private <V> V createJavaObject(JsonValue jsonValue, Class<V> valueType, Class<?> collectionType) {
         if (jsonValue instanceof JsonArray) {
-            return toArrayInstance((JsonArray) jsonValue, valueType, collectionType);
+            return createArrayInstance((JsonArray) jsonValue, valueType, collectionType);
         } else if (jsonValue instanceof JsonObject) {
-            return toObjectInstance((JsonObject) jsonValue, valueType);
+            return createObjectInstance((JsonObject) jsonValue, valueType);
         } else {
             Object value = null;
             if (jsonValue instanceof JsonString) {
@@ -240,33 +279,29 @@ public final class ObjectMapper {
     }
 
     @SuppressWarnings("unchecked")
-    private <V> V toObjectInstance(JsonObject jsonObject, Class<?> valueType) {
+    private <V> V createObjectInstance(JsonObject jsonObject, Class<?> valueType) {
         if (valueType == Object.class || Map.class.isAssignableFrom(valueType)) {// then return a map
-            Map<Object, Object> instance = createObjectMapInstance(valueType);
+            Map<Object, Object> instance = MapperUtils.createObjectMapInstance(valueType);
             for (Map.Entry<String, JsonValue> entry : jsonObject.entrySet()) {
                 instance.put(entry.getKey(), toJavaObject(entry.getValue(), Object.class));
             }
             return (V) Collections.unmodifiableMap(instance);
         } else { // try to create the value type instance
             try {
-                V instance = (V) valueType.getDeclaredConstructor().newInstance();
-                List<Field> fieldList = MapperContext.findAllFields(valueType);
+                V instance = MapperUtils.invokeConstructor(valueType);
+                ClassMetadata classMetadata = MapperUtils.getMetadata(valueType);
+                Map<String, PropertyAccessor> propertyAccessorMap = classMetadata.getPropertyAccessorMap();
                 for (Map.Entry<String, JsonValue> entry : jsonObject.entrySet()) {
-                    Field field = null;
-                    for (Field f : fieldList) {
-                        if (f.getName().equals(entry.getKey())) {
-                            field = f;
-                            break;
-                        }
+                    PropertyAccessor accessor = propertyAccessorMap.get(entry.getKey());
+                    if (accessor == null) {
+                        continue; // Unknown JSON fields are silently ignored
                     }
-                    if (field == null) {
-                        continue;//or throw exception here!
-                    }
-                    Class<?> typeArgument = getTypeArguments(field.getGenericType()).getValue();
-                    Object fieldValue = toJavaObject(entry.getValue(), typeArgument, field.getType());
-                    MapperContext.setFieldValue(instance, field, fieldValue);
+                    accessor.set(instance, createJavaObject(entry.getValue(),
+                            accessor.typeArgument(), accessor.type()));
                 }
                 return instance;
+            } catch (JsonException e) {
+                throw e;
             } catch (Exception e) {
                 throw new JsonException("unable to create object instance", e);
             }
@@ -274,24 +309,17 @@ public final class ObjectMapper {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<Object, Object> createObjectMapInstance(Class<?> valueType) {
-        if (valueType != Object.class && !valueType.isInterface()) {
-            try {
-                return (Map<Object, Object>) valueType.getDeclaredConstructor().newInstance();
-            } catch (Exception e) {
-                throw new IllegalArgumentException(e);
-            }
-        } else {
-            return new HashMap<>();
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private <V> V toArrayInstance(JsonArray jsonArray, Class<V> valueType, Class<?> collectionType) {
+    private <V> V createArrayInstance(JsonArray jsonArray, Class<V> valueType, Class<?> collectionType) {
         if (collectionType == null) {
-            Map.Entry<Class<?>, Class<?>> typeArguments = getTypeArguments(valueType);
+            Map.Entry<Class<?>, Class<?>> typeArguments = MapperUtils.getTypeArguments(valueType);
             collectionType = typeArguments.getKey();
             valueType = (Class<V>) typeArguments.getValue();
+        }
+        // For raw collection types (List, Set, Collection), use Object as element type
+        if (valueType.isInterface() && (List.class.isAssignableFrom(valueType)
+                || Set.class.isAssignableFrom(valueType)
+                || Collection.class.isAssignableFrom(valueType))) {
+            valueType = (Class<V>) Object.class;
         }
         if (collectionType.isArray()) {
             V[] instance = (V[]) Array.newInstance(valueType, jsonArray.size());
@@ -300,7 +328,7 @@ public final class ObjectMapper {
             }
             return (V) instance;
         } else if (Collection.class.isAssignableFrom(collectionType)) {
-            Collection<V> instance = createCollectionInstance(collectionType);
+            Collection<V> instance = MapperUtils.createCollectionInstance(collectionType);
             for (JsonValue jsonValue : jsonArray) {
                 instance.add(toJavaObject(jsonValue, valueType));
             }
@@ -313,45 +341,5 @@ public final class ObjectMapper {
             }
         }
         throw new IllegalArgumentException("JsonArray can only be converted into an array type!");
-    }
-
-    @SuppressWarnings("unchecked")
-    private <V> Collection<V> createCollectionInstance(Class<?> collectionType) {
-        if (Object.class.equals(collectionType) || List.class.equals(collectionType)) {
-            return new ArrayList<>();
-        } else if (Set.class.equals(collectionType)) {
-            return new HashSet<>();
-        } else if (!collectionType.isInterface()) {
-            try {
-                return (Collection<V>) collectionType.getDeclaredConstructor().newInstance();
-            } catch (Exception e) {
-                throw new JsonException("unable to create collection instance: " + collectionType, e);
-            }
-        } else {
-            throw new JsonException("unable to create collection instance: " + collectionType);
-        }
-    }
-
-    private static Map.Entry<Class<?>, Class<?>> getTypeArguments(Type type) {
-        if (type instanceof Class) {
-            return new AbstractMap.SimpleImmutableEntry<>((Class<?>) type, (Class<?>) type);
-        } else if (type instanceof ParameterizedType parameterizedType) {
-            Class<?> rawType = (Class<?>) parameterizedType.getRawType();
-            Type[] typeArguments = parameterizedType.getActualTypeArguments();
-            if (typeArguments.length > 0) {
-                // return getTypeArgument(typeArgument); // for multi-level inner type!
-                Type typeArgument = typeArguments[0];
-                if (typeArgument instanceof Class) {
-                    return new AbstractMap.SimpleImmutableEntry<>(rawType, (Class<?>) typeArgument);
-                } else if (typeArgument instanceof ParameterizedType) {
-                    return new AbstractMap.SimpleImmutableEntry<>(rawType, (Class<?>)
-                        ((ParameterizedType) typeArgument).getRawType());
-                }
-            }
-            return new AbstractMap.SimpleImmutableEntry<>(rawType, rawType);
-        } else {
-            throw new IllegalArgumentException("Type parameter " + type.toString() + " not a class or " +
-                "parameterized type whose raw type is a class");
-        }
     }
 }

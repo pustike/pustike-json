@@ -25,7 +25,7 @@
     </parent>
 
     <artifactId>pustike-json</artifactId>
-    <version>0.5.0</version>
+    <version>0.6.0</version>
 
     <name>Pustike JSON</name>
     <description>JSON Object Mapper using Jakarta JSON-P</description>

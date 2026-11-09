@@ -19,9 +19,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -37,16 +35,19 @@ public final class TypeConverter {
     private static final Map<Class<?>, Class<?>> primitiveToWrapperMap = Map.of(boolean.class, Boolean.class,
         byte.class, Byte.class, char.class, Character.class, double.class, Double.class, float.class, Float.class,
         int.class, Integer.class, long.class, Long.class, short.class, Short.class, void.class, Void.class);
-    private final Map<SimpleImmutableEntry<?, ?>, Function<?, ?>> converterCache;
+    private final Map<Class<?>, Map<Class<?>, Function<?, ?>>> converterCache;
     // The internal cache to store eventType hierarchy, when no external loader is provided.
     private final Map<Class<?>, Set<Class<?>>> typeHierarchyCache;
+    // Cache for resolved converter lookups to avoid repeated hierarchy traversal
+    private final Map<Class<?>, Map<Class<?>, Function<?, ?>>> resolvedConverterCache;
 
     /**
      * Constructs Type Converter instance with default converters registered to it.
      */
     public TypeConverter() {
-        this.converterCache = new LinkedHashMap<>(64);
+        this.converterCache = new ConcurrentHashMap<>(64);
         this.typeHierarchyCache = new ConcurrentHashMap<>();
+        this.resolvedConverterCache = new ConcurrentHashMap<>();
         // register default converters
         addDefaultConverters();
     }
@@ -68,10 +69,10 @@ public final class TypeConverter {
         sourceType = sourceType.isPrimitive() ? (Class<S>) primitiveToWrapperMap.get(sourceType) : sourceType;
         targetType = targetType.isPrimitive() ? (Class<T>) primitiveToWrapperMap.get(targetType) : targetType;
 
-        SimpleImmutableEntry<?, ?> cacheKey = new SimpleImmutableEntry<>(sourceType, targetType);
-        Function<?, ?> previousValue = converterCache.putIfAbsent(cacheKey, converter);
+        Map<Class<?>, Function<?, ?>> targetMap = converterCache.computeIfAbsent(sourceType, k -> new ConcurrentHashMap<>());
+        Function<?, ?> previousValue = targetMap.putIfAbsent(targetType, converter);
         if (previousValue != null) {
-            throw new IllegalStateException("Converter is already registered for: " + cacheKey);
+            throw new IllegalStateException("Converter is already registered for: " + sourceType + " -> " + targetType);
         }
     }
 
@@ -152,21 +153,35 @@ public final class TypeConverter {
         } else if (converter != null) {
             return converter.apply(source);
         } else if(!ignoreConverterNotFoundError) {
-            SimpleImmutableEntry<?, ?> cacheKey = new SimpleImmutableEntry<>(source.getClass(), targetType);
-            throw new RuntimeException("No matching converter is registered for: " + cacheKey);
+            throw new RuntimeException("No matching converter is registered for: " + source.getClass() + " -> " + targetType);
         }
         return null;
     }
 
-    private Function<?, ?> findConverter(Class<?> sourceType, Class<?> targetType) {// Search the full type hierarchy
+    private Function<?, ?> findConverter(Class<?> sourceType, Class<?> targetType) {
+        // Check resolved cache first to avoid repeated hierarchy traversal
+        Map<Class<?>, Function<?, ?>> resolvedMap = resolvedConverterCache.get(sourceType);
+        if (resolvedMap != null) {
+            Function<?, ?> cached = resolvedMap.get(targetType);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        // Search the full type hierarchy
         Set<Class<?>> sourceCandidates = typeHierarchyCache.computeIfAbsent(sourceType, this::flattenHierarchy);
         Set<Class<?>> targetCandidates = typeHierarchyCache.computeIfAbsent(targetType, this::flattenHierarchy);
         for (Class<?> sourceCandidate : sourceCandidates) {
-            for (Class<?> targetCandidate : targetCandidates) {
-                SimpleImmutableEntry<?, ?> cacheKey = new SimpleImmutableEntry<>(sourceCandidate, targetCandidate);
-                Function<?, ?> converter = converterCache.get(cacheKey);
-                if (converter != null) {
-                    return converter;
+            Map<Class<?>, Function<?, ?>> targetMap = converterCache.get(sourceCandidate);
+            if (targetMap != null) {
+                for (Class<?> targetCandidate : targetCandidates) {
+                    Function<?, ?> converter = targetMap.get(targetCandidate);
+                    if (converter != null) {
+                        // Cache the resolved converter for future lookups — use putIfAbsent
+                        // to avoid race conditions where computeIfAbsent could discard the value
+                        resolvedConverterCache.computeIfAbsent(sourceType, k -> new ConcurrentHashMap<>())
+                            .putIfAbsent(targetType, converter);
+                        return converter;
+                    }
                 }
             }
         }
@@ -196,6 +211,7 @@ public final class TypeConverter {
     public void invalidate() {
         typeHierarchyCache.clear();
         converterCache.clear();
+        resolvedConverterCache.clear();
     }
 
     private record BiFunctionWrapper<S, T>(BiFunction<S, Class<? extends T>, T> converterFactory)
@@ -250,6 +266,10 @@ public final class TypeConverter {
         text = text.trim();
         if (text.isEmpty()) {
             return null;
+        }
+        // Short-circuit: if targetType is already an enum, use it directly
+        if (targetType.isEnum()) {
+            return (T) Enum.valueOf((Class<? extends Enum>) targetType, text);
         }
         Class<?> enumType = targetType;
         while (enumType != null && !enumType.isEnum()) {

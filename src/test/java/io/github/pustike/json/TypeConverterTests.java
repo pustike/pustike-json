@@ -15,70 +15,133 @@
  */
 package io.github.pustike.json;
 
+import java.time.LocalDate;
+
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Unit tests for {@link TypeConverter} standalone behavior.
+ */
 public class TypeConverterTests {
-    private static TypeConverter typeConverter;
+    private static TypeConverter tc;
 
     @BeforeAll
     public static void setUp() {
-        typeConverter = new TypeConverter();
+        tc = new TypeConverter();
     }
 
     @Test
     public void canConvert() {
-        assertTrue(typeConverter.canConvert(String.class, Integer.class));
-        assertFalse(typeConverter.canConvert(String.class, String[].class));
+        assertTrue(tc.canConvert(String.class, Integer.class));
+        assertFalse(tc.canConvert(String.class, String[].class));
     }
 
     @Test
     public void canConvertAssignable() {
-        assertTrue(typeConverter.canConvert(String.class, String.class));
-        assertTrue(typeConverter.canConvert(Integer.class, Number.class));
-        assertTrue(typeConverter.canConvert(boolean.class, boolean.class));
-        assertTrue(typeConverter.canConvert(boolean.class, Boolean.class));
+        assertTrue(tc.canConvert(String.class, String.class));
+        assertTrue(tc.canConvert(Integer.class, Number.class));
+        assertTrue(tc.canConvert(boolean.class, boolean.class));
+        assertTrue(tc.canConvert(boolean.class, Boolean.class));
     }
 
     @Test
     public void canConvertFromClassSourceTypeToNullTargetType() {
-        assertThrows(NullPointerException.class, () -> typeConverter.convert(String.class, null));
+        assertThrows(NullPointerException.class, () -> tc.convert(String.class, null));
     }
 
     @Test
     public void canConvertNullSourceType() {
-        assertTrue(typeConverter.canConvert(null, Integer.class));
+        assertTrue(tc.canConvert(null, Integer.class));
     }
 
     @Test
     public void convertNullSource() {
-        assertNull(typeConverter.convert(null, Integer.class));
-        assertNull(typeConverter.convert(null, Integer.class));
+        assertNull(tc.convert(null, Integer.class));
+        assertNull(tc.convert(null, Integer.class));
     }
 
     @Test
     public void convertNullSourcePrimitiveTarget() {
-        assertNull(typeConverter.convert(null, int.class));
+        assertNull(tc.convert(null, int.class));
     }
 
     @Test
     public void convertAssignableSource() {
-        assertEquals(Boolean.FALSE, typeConverter.convert(false, Boolean.class));
-        assertEquals(false, typeConverter.convert(Boolean.FALSE, boolean.class));
+        assertEquals(Boolean.FALSE, tc.convert(false, Boolean.class));
+        assertEquals(false, tc.convert(Boolean.FALSE, boolean.class));
     }
 
     @Test
     public void convertVoidTypes() {
-        assertFalse(typeConverter.canConvert(void.class, String.class));
-        assertFalse(typeConverter.canConvert(String.class, void.class));
+        assertFalse(tc.canConvert(void.class, String.class));
+        assertFalse(tc.canConvert(String.class, void.class));
+    }
+
+    @Test
+    public void typeConverter_canConvert_sameType() {
+        assertTrue(tc.canConvert(String.class, String.class));
+    }
+
+    @Test
+    public void typeConverter_canConvert_registered() {
+        assertTrue(tc.canConvert(String.class, LocalDate.class));
+    }
+
+    @Test
+    public void typeConverter_canConvert_unregistered() {
+        assertFalse(tc.canConvert(String.class, TestPojo.PersonRecord.class));
+    }
+
+    @Test
+    public void typeConverter_canConvert_nullSource() {
+        assertTrue(tc.canConvert(null, String.class));
+    }
+
+    @Test
+    public void typeConverter_convert_numberToString() {
+        String result = tc.convert(42, String.class);
+        assertEquals("42", result);
+    }
+
+    @Test
+    public void typeConverter_convert_stringToNumber() {
+        Integer result = tc.convert("42", Integer.class);
+        assertEquals(42, result);
+    }
+
+    @Test
+    public void typeConverter_convertSafely_unregistered() {
+        // Should return null instead of throwing
+        Object result = tc.convertSafely("test", TestPojo.PersonRecord.class);
+        assertNull(result);
+    }
+
+    @Test
+    public void typeConverter_invalidate() {
+        TypeConverter converter = new TypeConverter();
+        // Should not throw
+        converter.invalidate();
+    }
+
+    @Test
+    public void typeConverter_convert_boolean() {
+        Boolean result = tc.convert("true", Boolean.class);
+        assertTrue(result);
+    }
+
+    @Test
+    public void typeConverter_convert_character() {
+        Character result = tc.convert("A", Character.class);
+        assertEquals('A', result);
     }
 
     @AfterAll
     public static void tearDown() {
-        typeConverter.invalidate();
-        typeConverter = null;
+        tc.invalidate();
+        tc = null;
     }
 }

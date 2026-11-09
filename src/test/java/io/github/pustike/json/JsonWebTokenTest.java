@@ -73,9 +73,10 @@ public class JsonWebTokenTest {
 
     @Test
     public void testPlaintextJwtString() {
-        String payload = "{\"iss\":\"joe\",\r\n" +
-            " \"exp\":1300819380,\r\n" +
-            " \"http://example.com/is_root\":true}";
+        String payload = """
+                {"iss":"joe",\r
+                 "exp":1300819380,\r
+                 "http://example.com/is_root":true}""";
         String val = Jwts.builder().content(payload).json(jwtSerializer).compact();
         String specOutput = "eyJhbGciOiJub25lIn0.eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.";
         Assertions.assertEquals(specOutput, val);

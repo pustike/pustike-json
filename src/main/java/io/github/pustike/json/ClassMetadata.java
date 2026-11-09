@@ -1,0 +1,72 @@
+/*
+ * Copyright (C) 2019 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.github.pustike.json;
+
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.util.*;
+import jakarta.json.JsonException;
+
+// Lazily computed class metadata
+class ClassMetadata {
+    private final Class<?> clazz;
+    private volatile Map<String, PropertyAccessor> propertyAccessorMap;
+    private volatile JsonInclude[] annotations;
+    private volatile MethodHandle constructor;
+
+    ClassMetadata(Class<?> clazz) {
+        this.clazz = clazz;
+    }
+
+    public Map<String, PropertyAccessor> getPropertyAccessorMap() throws IllegalAccessException {
+        if (this.propertyAccessorMap == null) {
+            synchronized (this) {
+                if (this.propertyAccessorMap == null) {
+                    this.propertyAccessorMap = PropertyScanner.discoverProperties(clazz, MethodHandles.lookup());
+                }
+            }
+        }
+        return this.propertyAccessorMap;
+    }
+
+    JsonInclude[] getAnnotations() {
+        if (this.annotations == null) {
+            synchronized (this) {
+                if (this.annotations == null) {
+                    this.annotations = clazz.getAnnotationsByType(JsonInclude.class);
+                }
+            }
+        }
+        return this.annotations;
+    }
+
+    MethodHandle getConstructor() {
+        if (this.constructor == null) {
+            synchronized (this) {
+                if (this.constructor == null) {
+                    try {
+                        MethodHandles.Lookup lookup = MethodHandles.lookup();
+                        this.constructor = lookup.findConstructor(clazz, MethodType.methodType(void.class));
+                    } catch (NoSuchMethodException | IllegalAccessException e) {
+                        throw new JsonException("unable to find no-arg constructor for: " + clazz, e);
+                    }
+                }
+            }
+        }
+        return this.constructor;
+    }
+}
