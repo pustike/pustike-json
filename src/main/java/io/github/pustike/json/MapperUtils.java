@@ -16,6 +16,7 @@
 package io.github.pustike.json;
 
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
@@ -31,30 +32,30 @@ class MapperUtils {
     }
 
     @SuppressWarnings("unchecked")
-    static <V> V invokeConstructor(Class<?> clazz) {
+    static <V> V invokeConstructor(Class<?> clazz, MethodHandles.Lookup lookup) {
         try {
-            MethodHandle methodHandle = getMetadata(clazz).getConstructor();
+            MethodHandle methodHandle = getMetadata(clazz).getConstructor(lookup);
             return (V) methodHandle.invoke();
         } catch (Throwable e) {
             throw new JsonException("unable to invoke constructor of class: " + clazz, e);
         }
     }
 
-    static Map<Object, Object> createObjectMapInstance(Class<?> valueType) {
+    static Map<Object, Object> createObjectMapInstance(Class<?> valueType, MethodHandles.Lookup lookup) {
         if (valueType != Object.class && !valueType.isInterface()) {
-            return invokeConstructor(valueType);
+            return invokeConstructor(valueType, lookup);
         } else {
             return new HashMap<>();
         }
     }
 
-    static <V> Collection<V> createCollectionInstance(Class<?> collectionType) {
+    static <V> Collection<V> createCollectionInstance(Class<?> collectionType, MethodHandles.Lookup lookup) {
         if (Object.class.equals(collectionType) || List.class.equals(collectionType)) {
             return new ArrayList<>();
         } else if (Set.class.equals(collectionType)) {
             return new HashSet<>();
         } else if (!collectionType.isInterface()) {
-            return invokeConstructor(collectionType);
+            return invokeConstructor(collectionType, lookup);
         } else {
             throw new JsonException("unable to create collection instance: " + collectionType);
         }
@@ -83,17 +84,17 @@ class MapperUtils {
         }
     }
 
-    static Map<String, String> findFieldInclusionMap(Class<?> objectClass, String context) {
+    static Map<String, String> findFieldInclusionMap(Class<?> aClass, String context) {
         if (context == null) {
             return Map.of();
         }
-        JsonInclude[] jsonIncludes = getMetadata(objectClass).getAnnotations();
+        JsonInclude[] jsonIncludes = getMetadata(aClass).getAnnotations();
         if (jsonIncludes.length > 0) {// this way PageData without the @JsonInclude is skipped
             JsonInclude selectedInclude = getSelectedInclude(context, jsonIncludes);
             if (selectedInclude != null) {
                 // Build the field context map inside computeIfAbsent to avoid race conditions
                 // where the computed value could be discarded by another thread
-                return includedFieldsCache.computeIfAbsent(objectClass, k -> new ConcurrentHashMap<>())
+                return includedFieldsCache.computeIfAbsent(aClass, k -> new ConcurrentHashMap<>())
                     .computeIfAbsent(context, k -> buildFieldCtxMap(selectedInclude.fields()));
             }
         }
@@ -133,4 +134,3 @@ class MapperUtils {
         includedFieldsCache.clear();
     }
 }
-

@@ -18,7 +18,7 @@ package io.github.pustike.json;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.util.*;
+import java.util.Map;
 import jakarta.json.JsonException;
 
 // Lazily computed class metadata
@@ -32,11 +32,12 @@ class ClassMetadata {
         this.clazz = clazz;
     }
 
-    public Map<String, PropertyAccessor> getPropertyAccessorMap() throws IllegalAccessException {
+    public Map<String, PropertyAccessor> getPropertyAccessorMap(MethodHandles.Lookup lookup)
+            throws IllegalAccessException {
         if (this.propertyAccessorMap == null) {
             synchronized (this) {
                 if (this.propertyAccessorMap == null) {
-                    this.propertyAccessorMap = PropertyScanner.discoverProperties(clazz, MethodHandles.lookup());
+                    this.propertyAccessorMap = PropertyScanner.discoverProperties(clazz, lookup);
                 }
             }
         }
@@ -54,19 +55,20 @@ class ClassMetadata {
         return this.annotations;
     }
 
-    MethodHandle getConstructor() {
+    MethodHandle getConstructor(MethodHandles.Lookup lookup) {
         if (this.constructor == null) {
             synchronized (this) {
                 if (this.constructor == null) {
                     try {
-                        MethodHandles.Lookup lookup = MethodHandles.lookup();
-                        this.constructor = lookup.findConstructor(clazz, MethodType.methodType(void.class));
+                        // this.constructor = lookup.unreflectConstructor(clazz.getDeclaredConstructor());
+                        MethodHandles.Lookup privateLookup = MethodHandles.privateLookupIn(clazz, lookup);
+                        this.constructor = privateLookup.findConstructor(clazz, MethodType.methodType(void.class));
                     } catch (NoSuchMethodException | IllegalAccessException e) {
                         throw new JsonException("unable to find no-arg constructor for: " + clazz, e);
                     }
                 }
             }
         }
-        return this.constructor;
+        return constructor;
     }
 }

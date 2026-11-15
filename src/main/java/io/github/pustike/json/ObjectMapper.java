@@ -18,6 +18,7 @@ package io.github.pustike.json;
 import java.io.ByteArrayInputStream;
 import java.io.Reader;
 import java.io.StringReader;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Array;
 import java.lang.reflect.Type;
 import java.util.*;
@@ -37,12 +38,13 @@ import jakarta.json.*;
  */
 public final class ObjectMapper {
     private final TypeConverter typeConverter;
+    private final MethodHandles.Lookup lookup;
 
     /**
      * Constructs an object mapper without a type converter.
      */
     public ObjectMapper() {
-        this.typeConverter = null;
+        this(null, MethodHandles.lookup());
     }
 
     /**
@@ -50,7 +52,17 @@ public final class ObjectMapper {
      * @param typeConverter the type converter to use
      */
     public ObjectMapper(TypeConverter typeConverter) {
+        this(typeConverter, MethodHandles.lookup());
+    }
+
+    /**
+     * Constructs an object mapper with the given type converter and lookup.
+     * @param typeConverter the type converter to use
+     * @param lookup the base lookup to use
+     */
+    public ObjectMapper(TypeConverter typeConverter, MethodHandles.Lookup lookup) {
         this.typeConverter = typeConverter;
+        this.lookup = Objects.requireNonNull(lookup);
     }
 
     /**
@@ -225,7 +237,7 @@ public final class ObjectMapper {
         JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
         try {
             ClassMetadata classMetadata = MapperUtils.getMetadata(object.getClass());
-            Map<String, PropertyAccessor> propertyAccessorMap = classMetadata.getPropertyAccessorMap();
+            Map<String, PropertyAccessor> propertyAccessorMap = classMetadata.getPropertyAccessorMap(lookup);
             Map<String, String> fieldCtxMap = MapperUtils.findFieldInclusionMap(object.getClass(), context);
             for (PropertyAccessor accessor : propertyAccessorMap.values()) {
                 if (!fieldCtxMap.isEmpty()) {
@@ -281,16 +293,16 @@ public final class ObjectMapper {
     @SuppressWarnings("unchecked")
     private <V> V createObjectInstance(JsonObject jsonObject, Class<?> valueType) {
         if (valueType == Object.class || Map.class.isAssignableFrom(valueType)) {// then return a map
-            Map<Object, Object> instance = MapperUtils.createObjectMapInstance(valueType);
+            Map<Object, Object> instance = MapperUtils.createObjectMapInstance(valueType, lookup);
             for (Map.Entry<String, JsonValue> entry : jsonObject.entrySet()) {
                 instance.put(entry.getKey(), toJavaObject(entry.getValue(), Object.class));
             }
             return (V) Collections.unmodifiableMap(instance);
         } else { // try to create the value type instance
             try {
-                V instance = MapperUtils.invokeConstructor(valueType);
+                V instance = MapperUtils.invokeConstructor(valueType, lookup);
                 ClassMetadata classMetadata = MapperUtils.getMetadata(valueType);
-                Map<String, PropertyAccessor> propertyAccessorMap = classMetadata.getPropertyAccessorMap();
+                Map<String, PropertyAccessor> propertyAccessorMap = classMetadata.getPropertyAccessorMap(lookup);
                 for (Map.Entry<String, JsonValue> entry : jsonObject.entrySet()) {
                     PropertyAccessor accessor = propertyAccessorMap.get(entry.getKey());
                     if (accessor == null) {
@@ -328,7 +340,7 @@ public final class ObjectMapper {
             }
             return (V) instance;
         } else if (Collection.class.isAssignableFrom(collectionType)) {
-            Collection<V> instance = MapperUtils.createCollectionInstance(collectionType);
+            Collection<V> instance = MapperUtils.createCollectionInstance(collectionType, lookup);
             for (JsonValue jsonValue : jsonArray) {
                 instance.add(toJavaObject(jsonValue, valueType));
             }
