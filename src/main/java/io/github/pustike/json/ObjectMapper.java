@@ -192,6 +192,8 @@ public final class ObjectMapper {
             return Json.createValue((Number) value);
         } else if (value instanceof String) {
             return Json.createValue((String) value);
+        } else if (value instanceof Character) {
+            return Json.createValue(value.toString());
         } else if (value.getClass().isArray()) {
             return createJsonArray(value, context, level);
         } else if (Iterable.class.isAssignableFrom(value.getClass())) {
@@ -236,11 +238,12 @@ public final class ObjectMapper {
     private JsonObject createJsonObject(Object object, String context, int level) {
         JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
         try {
-            ClassMetadata classMetadata = MapperUtils.getMetadata(object.getClass());
-            Map<String, PropertyAccessor> propertyAccessorMap = classMetadata.getPropertyAccessorMap(lookup);
-            Map<String, String> fieldCtxMap = MapperUtils.findFieldInclusionMap(object.getClass(), context);
+            ClassMetadata classMetadata = MapperUtils.getMetadata(object.getClass(), lookup);
+            Map<String, PropertyAccessor> propertyAccessorMap = classMetadata.getPropertyAccessorMap();
+            Map<String, String> fieldCtxMap = MapperUtils.findFieldInclusionMap(object.getClass(), lookup, context);
+            boolean hasContextFilter = !fieldCtxMap.isEmpty();
             for (PropertyAccessor accessor : propertyAccessorMap.values()) {
-                if (!fieldCtxMap.isEmpty()) {
+                if (hasContextFilter) {
                     // Field must be in the inclusion map to be serialized
                     if (!fieldCtxMap.containsKey(accessor.javaName())) {
                         continue;
@@ -252,7 +255,7 @@ public final class ObjectMapper {
                 }
                 String nestedCtx = fieldCtxMap.get(accessor.javaName());
                 if (nestedCtx == null) {
-                    nestedCtx = fieldCtxMap.isEmpty() ? context : "";
+                    nestedCtx = !hasContextFilter ? context : "";
                 }
                 objectBuilder.add(accessor.name(), createJsonValue(fieldValue, nestedCtx, level + 1));
             }
@@ -301,8 +304,8 @@ public final class ObjectMapper {
         } else { // try to create the value type instance
             try {
                 V instance = MapperUtils.invokeConstructor(valueType, lookup);
-                ClassMetadata classMetadata = MapperUtils.getMetadata(valueType);
-                Map<String, PropertyAccessor> propertyAccessorMap = classMetadata.getPropertyAccessorMap(lookup);
+                ClassMetadata classMetadata = MapperUtils.getMetadata(valueType, lookup);
+                Map<String, PropertyAccessor> propertyAccessorMap = classMetadata.getPropertyAccessorMap();
                 for (Map.Entry<String, JsonValue> entry : jsonObject.entrySet()) {
                     PropertyAccessor accessor = propertyAccessorMap.get(entry.getKey());
                     if (accessor == null) {

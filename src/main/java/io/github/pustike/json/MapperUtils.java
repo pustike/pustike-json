@@ -25,19 +25,18 @@ import jakarta.json.JsonException;
 
 class MapperUtils {
     private record MetadataCacheKey(Class<?> clazz, MethodHandles.Lookup lookup) { }
-
     private static final Map<MetadataCacheKey, ClassMetadata> classMetadataCache = new ConcurrentHashMap<>();
     private static final Map<Class<?>, Map<String, Map<String, String>>> includedFieldsCache = new ConcurrentHashMap<>();
 
     static ClassMetadata getMetadata(Class<?> clazz, MethodHandles.Lookup lookup) {
         MetadataCacheKey key = new MetadataCacheKey(clazz, lookup);
-        return classMetadataCache.computeIfAbsent(key, k -> new ClassMetadata(k.clazz()));
+        return classMetadataCache.computeIfAbsent(key, k -> new ClassMetadata(k.clazz(), k.lookup()));
     }
 
     @SuppressWarnings("unchecked")
     static <V> V invokeConstructor(Class<?> clazz, MethodHandles.Lookup lookup) {
         try {
-            MethodHandle methodHandle = getMetadata(clazz, lookup).getConstructor(lookup);
+            MethodHandle methodHandle = getMetadata(clazz, lookup).getConstructor();
             return (V) methodHandle.invoke();
         } catch (Throwable e) {
             throw new JsonException("unable to invoke constructor of class: " + clazz, e);
@@ -87,8 +86,7 @@ class MapperUtils {
         }
     }
 
-    static Map<String, String> findFieldInclusionMap(Class<?> aClass, String context,
-            MethodHandles.Lookup lookup) {
+    static Map<String, String> findFieldInclusionMap(Class<?> aClass, MethodHandles.Lookup lookup, String context) {
         if (context == null) {
             return Map.of();
         }

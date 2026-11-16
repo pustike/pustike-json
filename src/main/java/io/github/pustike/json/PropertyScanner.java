@@ -92,10 +92,10 @@ final class PropertyScanner {
             if (isGetter(method)) {
                 String javaName = decapitalize(stripGetterPrefix(method.getName()));
                 PropertyBuilder builder = builders.computeIfAbsent(javaName, PropertyBuilder::new);
-                /*if (method.isAnnotationPresent(JsonIgnore.class)) {
+                if (method.isAnnotationPresent(JsonIgnore.class)) {
                     builder.ignored = true;
                 }
-                applyPropertyAnnotation(method, builder, true);*/
+                applyPropertyAnnotation(method, builder, true);
                 if (builder.getter == null) {
                     try {
                         MethodHandle raw = lookup.unreflect(method);
@@ -109,10 +109,10 @@ final class PropertyScanner {
             } else if (isSetter(method)) {
                 String javaName = decapitalize(method.getName().substring(3));
                 PropertyBuilder builder = builders.computeIfAbsent(javaName, PropertyBuilder::new);
-                /*if (method.isAnnotationPresent(JsonIgnore.class)) {
+                if (method.isAnnotationPresent(JsonIgnore.class)) {
                     builder.ignored = true;
                 }
-                applyPropertyAnnotation(method, builder, false);*/
+                applyPropertyAnnotation(method, builder, false);
                 if (builder.setter == null) {
                     try {
                         MethodHandle raw = lookup.unreflect(method);

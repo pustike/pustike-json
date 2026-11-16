@@ -74,4 +74,24 @@ public class IgnoredFieldsTest {
         assertEquals("v", pojo.getVisible());
         assertNull(pojo.getHidden());
     }
+
+    @Test
+    public void toJsonValue_methodLevelIgnored() {
+        TestPojo.MethodIgnoredPojo pojo = new TestPojo.MethodIgnoredPojo();
+        pojo.setVisible("visible");
+        pojo.setHidden("hidden");
+
+        JsonValue json = mapper.toJsonValue(pojo);
+        JsonObject obj = (JsonObject) json;
+        assertEquals("visible", obj.getString("visible"));
+        assertNull(obj.get("hidden"));
+    }
+
+    @Test
+    public void readValue_methodLevelIgnored() {
+        String json = "{\"visible\":\"v\",\"hidden\":\"h\"}";
+        TestPojo.MethodIgnoredPojo pojo = mapper.readValue(json, TestPojo.MethodIgnoredPojo.class);
+        assertEquals("v", pojo.getVisible());
+        assertNull(pojo.getHidden());
+    }
 }

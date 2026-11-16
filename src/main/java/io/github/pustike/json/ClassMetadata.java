@@ -24,15 +24,17 @@ import jakarta.json.JsonException;
 // Lazily computed class metadata
 class ClassMetadata {
     private final Class<?> clazz;
+    private final MethodHandles.Lookup lookup;
     private volatile Map<String, PropertyAccessor> propertyAccessorMap;
     private volatile JsonInclude[] annotations;
     private volatile MethodHandle constructor;
 
-    ClassMetadata(Class<?> clazz) {
+    ClassMetadata(Class<?> clazz, MethodHandles.Lookup lookup) {
         this.clazz = clazz;
+        this.lookup = lookup;
     }
 
-    public Map<String, PropertyAccessor> getPropertyAccessorMap(MethodHandles.Lookup lookup)
+    public Map<String, PropertyAccessor> getPropertyAccessorMap()
             throws IllegalAccessException {
         if (this.propertyAccessorMap == null) {
             synchronized (this) {
@@ -55,7 +57,7 @@ class ClassMetadata {
         return this.annotations;
     }
 
-    MethodHandle getConstructor(MethodHandles.Lookup lookup) {
+    MethodHandle getConstructor() {
         if (this.constructor == null) {
             synchronized (this) {
                 if (this.constructor == null) {
@@ -69,6 +71,6 @@ class ClassMetadata {
                 }
             }
         }
-        return constructor;
+        return this.constructor;
     }
 }

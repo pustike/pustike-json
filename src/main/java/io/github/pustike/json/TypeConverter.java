@@ -252,7 +252,7 @@ public final class TypeConverter {
     }
 
     private Character convertStringToCharacter(String source) {
-        if (source.isEmpty()) {
+        if (source == null || source.isEmpty()) {
             return null;
         } else if (source.length() > 1) {
             throw new IllegalArgumentException("Can only convert a [String] with length of 1 to a [Character];" +

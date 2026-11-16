@@ -86,6 +86,36 @@ public final class TestPojo {
         public void setField2(String field2) { this.field2 = field2; }
     }
 
+    // -- Method-level @JsonIgnore POJO --
+
+    public static class MethodIgnoredPojo {
+        private String visible;
+        private String hidden;
+
+        public String getVisible() { return visible; }
+        public void setVisible(String visible) { this.visible = visible; }
+
+        @JsonIgnore
+        public String getHidden() { return hidden; }
+        @JsonIgnore
+        public void setHidden(String hidden) { this.hidden = hidden; }
+    }
+
+    // -- Method-level @JsonProperty POJO --
+
+    public static class MethodMappedPojo {
+        private String firstName;
+        private String lastName;
+
+        @JsonProperty("first_name")
+        public String getFirstName() { return firstName; }
+        public void setFirstName(String firstName) { this.firstName = firstName; }
+
+        @JsonProperty("last_name")
+        public String getLastName() { return lastName; }
+        public void setLastName(String lastName) { this.lastName = lastName; }
+    }
+
     // -- @JsonProperty POJOs --
 
     public static class MappedPojo {

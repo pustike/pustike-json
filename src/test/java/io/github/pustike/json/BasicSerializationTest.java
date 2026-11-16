@@ -87,4 +87,19 @@ public class BasicSerializationTest {
         assertNull(obj.get("name"));
         assertEquals(42, obj.getInt("age"));
     }
+
+    @Test
+    public void toJsonValue_characterValue() {
+        JsonValue json = mapper.toJsonValue('X');
+        assertEquals(JsonValue.ValueType.STRING, json.getValueType());
+        assertEquals("X", ((jakarta.json.JsonString) json).getString());
+    }
+
+    @Test
+    public void toJsonValue_characterWrapperValue() {
+        Character ch = 'A';
+        JsonValue json = mapper.toJsonValue(ch);
+        assertEquals(JsonValue.ValueType.STRING, json.getValueType());
+        assertEquals("A", ((jakarta.json.JsonString) json).getString());
+    }
 }

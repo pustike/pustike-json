@@ -54,4 +54,24 @@ public class PropertyNamingTest {
         assertEquals("John", pojo.getFirstName());
         assertEquals("Doe", pojo.getLastName());
     }
+
+    @Test
+    public void toJsonValue_methodLevelJsonProperty() {
+        TestPojo.MethodMappedPojo pojo = new TestPojo.MethodMappedPojo();
+        pojo.setFirstName("Jane");
+        pojo.setLastName("Smith");
+
+        JsonValue json = mapper.toJsonValue(pojo);
+        JsonObject obj = (JsonObject) json;
+        assertEquals("Jane", obj.getString("first_name"));
+        assertEquals("Smith", obj.getString("last_name"));
+    }
+
+    @Test
+    public void readValue_methodLevelJsonProperty() {
+        String json = "{\"first_name\":\"Jane\",\"last_name\":\"Smith\"}";
+        TestPojo.MethodMappedPojo pojo = mapper.readValue(json, TestPojo.MethodMappedPojo.class);
+        assertEquals("Jane", pojo.getFirstName());
+        assertEquals("Smith", pojo.getLastName());
+    }
 }
