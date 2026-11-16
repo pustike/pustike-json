@@ -24,17 +24,20 @@ import java.util.concurrent.ConcurrentHashMap;
 import jakarta.json.JsonException;
 
 class MapperUtils {
-    private static final Map<Class<?>, ClassMetadata> classMetadataCache = new ConcurrentHashMap<>();
+    private record MetadataCacheKey(Class<?> clazz, MethodHandles.Lookup lookup) { }
+
+    private static final Map<MetadataCacheKey, ClassMetadata> classMetadataCache = new ConcurrentHashMap<>();
     private static final Map<Class<?>, Map<String, Map<String, String>>> includedFieldsCache = new ConcurrentHashMap<>();
 
-    static ClassMetadata getMetadata(Class<?> clazz) {
-        return classMetadataCache.computeIfAbsent(clazz, ClassMetadata::new);
+    static ClassMetadata getMetadata(Class<?> clazz, MethodHandles.Lookup lookup) {
+        MetadataCacheKey key = new MetadataCacheKey(clazz, lookup);
+        return classMetadataCache.computeIfAbsent(key, k -> new ClassMetadata(k.clazz()));
     }
 
     @SuppressWarnings("unchecked")
     static <V> V invokeConstructor(Class<?> clazz, MethodHandles.Lookup lookup) {
         try {
-            MethodHandle methodHandle = getMetadata(clazz).getConstructor(lookup);
+            MethodHandle methodHandle = getMetadata(clazz, lookup).getConstructor(lookup);
             return (V) methodHandle.invoke();
         } catch (Throwable e) {
             throw new JsonException("unable to invoke constructor of class: " + clazz, e);
@@ -84,11 +87,12 @@ class MapperUtils {
         }
     }
 
-    static Map<String, String> findFieldInclusionMap(Class<?> aClass, String context) {
+    static Map<String, String> findFieldInclusionMap(Class<?> aClass, String context,
+            MethodHandles.Lookup lookup) {
         if (context == null) {
             return Map.of();
         }
-        JsonInclude[] jsonIncludes = getMetadata(aClass).getAnnotations();
+        JsonInclude[] jsonIncludes = getMetadata(aClass, lookup).getAnnotations();
         if (jsonIncludes.length > 0) {// this way PageData without the @JsonInclude is skipped
             JsonInclude selectedInclude = getSelectedInclude(context, jsonIncludes);
             if (selectedInclude != null) {
