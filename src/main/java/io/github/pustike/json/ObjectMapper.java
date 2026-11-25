@@ -178,7 +178,7 @@ public final class ObjectMapper {
      */
     private static final int MAX_NESTING_DEPTH = 15;
 
-    public JsonValue createJsonValue(Object value, String context, int level) {
+    private JsonValue createJsonValue(Object value, String context, int level) {
         if (value == null) {
             return JsonValue.NULL;
         }
@@ -200,15 +200,14 @@ public final class ObjectMapper {
             return createJsonArray((Iterable<?>) value, context, level);
         } else if (Map.class.isAssignableFrom(value.getClass())) {
             return createJsonObject((Map<?, ?>) value, context, level);
-        } else {
-            if (typeConverter != null) {
-                String stringValue = typeConverter.convertSafely(value, String.class);
-                if (stringValue != null) {
-                    return Json.createValue(stringValue);
-                }
-            }
-            return createJsonObject(value, context, level);
         }
+        if (typeConverter != null) {
+            String stringValue = typeConverter.convertSafely(value, String.class);
+            if (stringValue != null) {
+                return Json.createValue(stringValue);
+            }
+        }
+        return createJsonObject(value, context, level);
     }
 
     private JsonArray createJsonArray(Object value, String context, int level) {
@@ -273,22 +272,21 @@ public final class ObjectMapper {
             return createArrayInstance((JsonArray) jsonValue, valueType, collectionType);
         } else if (jsonValue instanceof JsonObject) {
             return createObjectInstance((JsonObject) jsonValue, valueType);
-        } else {
-            Object value = null;
-            if (jsonValue instanceof JsonString) {
-                value = ((JsonString) jsonValue).getString();
-            } else if (jsonValue instanceof JsonNumber) {
-                value = ((JsonNumber) jsonValue).numberValue();
-            } else if (jsonValue == JsonValue.TRUE) {
-                value = Boolean.TRUE;
-            } else if (jsonValue == JsonValue.FALSE) {
-                value = Boolean.FALSE;
-            }
-            if (value == null || valueType.isAssignableFrom(value.getClass())) {
-                return (V) value;
-            } else if (typeConverter != null) {
-                return typeConverter.convertSafely(value, valueType);
-            }
+        }
+        Object value = null;
+        if (jsonValue instanceof JsonString) {
+            value = ((JsonString) jsonValue).getString();
+        } else if (jsonValue instanceof JsonNumber) {
+            value = ((JsonNumber) jsonValue).numberValue();
+        } else if (jsonValue == JsonValue.TRUE) {
+            value = Boolean.TRUE;
+        } else if (jsonValue == JsonValue.FALSE) {
+            value = Boolean.FALSE;
+        }
+        if (value == null || valueType.isAssignableFrom(value.getClass())) {
+            return (V) value;
+        } else if (typeConverter != null) {
+            return typeConverter.convertSafely(value, valueType);
         }
         return null;
     }

@@ -15,7 +15,7 @@ Add the dependency to your project:
 <dependency>
     <groupId>io.github.pustike</groupId>
     <artifactId>pustike-json</artifactId>
-    <version>0.6.0</version>
+    <version>0.7.0</version>
 </dependency>
 ```
 

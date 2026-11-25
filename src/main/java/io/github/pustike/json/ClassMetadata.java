@@ -62,8 +62,7 @@ class ClassMetadata {
             synchronized (this) {
                 if (this.constructor == null) {
                     try {
-                        // this.constructor = lookup.unreflectConstructor(clazz.getDeclaredConstructor());
-                        MethodHandles.Lookup privateLookup = MethodHandles.privateLookupIn(clazz, lookup);
+                        MethodHandles.Lookup privateLookup = PropertyScanner.resolveLookup(clazz, lookup);
                         this.constructor = privateLookup.findConstructor(clazz, MethodType.methodType(void.class));
                     } catch (NoSuchMethodException | IllegalAccessException e) {
                         throw new JsonException("unable to find no-arg constructor for: " + clazz, e);

@@ -39,7 +39,7 @@ final class PropertyScanner {
             if (c.isAnnotationPresent(JsonIgnore.class)) {
                 continue;
             }
-            LookupContext ctx = resolveLookupForClass(c, baseLookup);
+            LookupContext ctx = resolveLookupContext(c, baseLookup);
             // 1. Discover methods first (captures overrides, validation logic, and computed getters)
             scanMethods(c, ctx.lookup(), builders);
 
@@ -169,7 +169,7 @@ final class PropertyScanner {
     // --- Record Discovery ---
     private static Map<String, PropertyAccessor> discoverRecordProperties(Class<?> recordClass,
             MethodHandles.Lookup baseLookup) throws IllegalAccessException {
-        LookupContext ctx = resolveLookupForClass(recordClass, baseLookup);
+        LookupContext ctx = resolveLookupContext(recordClass, baseLookup);
         RecordComponent[] components = recordClass.getRecordComponents();
         Map<String, PropertyAccessor> result = new LinkedHashMap<>(components.length);
         for (RecordComponent rc : components) {
@@ -193,7 +193,11 @@ final class PropertyScanner {
     // --- Module & Lookup Resolution ---
     private record LookupContext(MethodHandles.Lookup lookup, boolean hasPrivateAccess) {}
 
-    private static LookupContext resolveLookupForClass(Class<?> clazz, MethodHandles.Lookup baseLookup) {
+    static MethodHandles.Lookup resolveLookup(Class<?> clazz, MethodHandles.Lookup baseLookup) {
+        return resolveLookupContext(clazz, baseLookup).lookup();
+    }
+
+    private static LookupContext resolveLookupContext(Class<?> clazz, MethodHandles.Lookup baseLookup) {
         try {
             Module callerMod = baseLookup.lookupClass().getModule();
             Module targetMod = clazz.getModule();
